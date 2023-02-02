@@ -1,0 +1,199 @@
+ca65 V2.18 - Ubuntu 2.18-1
+Main file   : fdump.s
+Current file: fdump.s
+
+000000r 1               ;**********************************************
+000000r 1               ;* P8 FILE DUMP DEMO PROGRAM *
+000000r 1               ;* CA65 ASSEMBLER
+000000r 1               ;***********************************************
+000000r 1               			.segment "STARTUP"
+000000r 1               			.segment "CODE"
+000000r 1               			.org $2000
+002000  1               
+002000  1               ; Set High Bit on char
+002000  1               .macro hiasc str
+002000  1               .repeat .strlen(str),I
+002000  1               .byte .strat(str,I) | $80
+002000  1               .endrep
+002000  1               .endmacro
+002000  1               
+002000  1               			;DSK FDUMP.SYS
+002000  1               			;TYP $FF 			; SYSTEM FILE TYPE
+002000  1               
+002000  1               MLI 		= $BF00		; STD. PRODOS 8 ENTRY
+002000  1               COUT 		= $FDED
+002000  1               HOME		= $FC58
+002000  1               RDKEY		= $FD0C		; MONITOR READ KEY ROUTINE
+002000  1               GETLN2 	= $FD6F 		; MONITOR INPUT ROUTINE W/0 PROMPT
+002000  1               INBUF 	= $200 		; INPUT BUFFER
+002000  1               PRBYTE 	= $FDDA		; PRINT ACC. AS HEX NUMBER
+002000  1               RD80COL 	= $C01F 		; BIT 7 = I = 80 COLS. "ON"
+002000  1               WNDWDTH 	= $21 			; TEXT WINDOW WIDTH
+002000  1               CH80 		= $578 		; 80-COL HORIZ. CURSOR POSN
+002000  1               
+002000  1               
+002000  1               
+002000  1  A9 4C        SETQUIT:	LDA #$4C 		; JMP INSTRUCTION
+002002  1  8D F8 03     			STA $3F8 		; CTRLY VECTOR
+002005  1  A9 B0        			LDA #<QUIT 		; WW BYTE OF QUIT ADDR.
+002007  1  8D F9 03     			STA $3F9 		; WW BYTE OF CTRL-Y VECTOR
+00200A  1  A9 20        			LDA #>QUIT
+00200C  1  8D FA 03     			STA $3FA 		; HIGH BYTE OF CTRL-Y VECTOR
+00200F  1               
+00200F  1  2C 1F C0     BEGIN: 	BIT RD80COL 	; 80 COLS ACTIVE?
+002012  1  30 07        			BMI CLEAR 	   ; YES
+002014  1  A9 28        			LDA #40 			; WINDOW WIDTH
+002016  1  85 21        			STA WNDWDTH 	; SET WIDTH, JUST IN CASE
+002018  1  9C 78 05     			STZ CH80 	 	; SET 80 COL CURSOR H = 0
+00201B  1               
+00201B  1  20 58 FC     CLEAR:	JSR HOME 		; CLEAR SCREEN
+00201E  1               
+00201E  1  A0 00        PROMPT: 	LDY #$00 		; !NIT Y-REG
+002020  1  B9 ED 20     @1: 		LDA MSSG1,Y 	; PRINT PROMPT MSSG.
+002023  1  F0 06        			BEQ GETPATH
+002025  1  20 ED FD     			JSR COUT 		; PRINT IT
+002028  1  C8           			INY 				; NEXT CHAR
+002029  1  D0 F5        			BNE @1 			; WRAPAROUND PROTECT
+00202B  1               
+00202B  1  20 6F FD     GETPATH:	JSR GETLN2		; GET PATHNAME FROM USER
+00202E  1               
+00202E  1  DA           FIX:		PHX				; SAVE LENGTH OF INPUT STRING
+00202F  1  BD FF 01     @1: 		LDA INBUF-1,X 	; GET LAST CHAR
+002032  1  9D 00 02     			STA INBUF,X 	; MOVE OVER ONE BYTE
+002035  1  CA           			DEX 				; X = X-1
+002036  1  D0 F7        			BNE @1 			; NEXT CHARACTER
+002038  1  FA           			PLX 				; RETRIEVE LENGTH
+002039  1  8E 00 02     			STX INBUF 		; PUT AT BEG. OF STRING
+00203C  1               
+00203C  1  E0 04        CHK1:		CPX #$04 		; 4 = LEN "QUIT"
+00203E  1  D0 10        			BNE OPEN 		; IT'S Nm "QUIT"
+002040  1               
+002040  1  BD 00 02     CHK2:		LDA INBUF,X 	; LAST CHAR OF INPUT
+002043  1  29 DF        			AND #$DF 		; CONVERT TO UPPERCASE IF NEEDED
+002045  1  DD 07 21     			CMP WORD-1,X 	; "QUIT"?
+002048  1  D0 06        			BNE OPEN 		; NOPE
+00204A  1  CA           			DEX
+00204B  1  D0 F3        			BNE CHK2 		; NOT DONE YET
+00204D  1  4C B0 20     			JMP QUIT 		; STR$ = "QUIT"
+002050  1               
+002050  1  20 00 BF     OPEN:		JSR MLI
+002053  1  C8           			.byt $C8 		; OPEN COMMAND
+002054  1  DF 20        			.word PARMTBL2 ; OPEN CMD TABLE
+002056  1  90 09        			BCC OPEN2 		; NO ERROR
+002058  1  20 B8 20     			JSR ERROR 		; PRODOS ERROR MESSAGE
+00205B  1  20 0C FD     			JSR RDKEY 		; WAIT FOR A KEYPRESS
+00205E  1  4C 0F 20     			JMP BEGIN 		; TRY AGAIN IF ERROR
+002061  1               
+002061  1  AD E4 20     OPEN2: 	LDA PARMTBL2 + 5 ; GET REFERENCE NUMBER
+002064  1  8D E6 20     			STA PARMTBL3 + 1 ; STORE REF NUMBER
+002067  1  A9 04        READ:		LDA #$04 		; # OF PARMS FOR 'READ'
+002069  1  8D E5 20     			STA PARMTBL3 	; MODIFY TABLE ENTRY
+00206C  1  20 00 BF     			JSR MLI
+00206F  1  CA           			.byt $CA 		; READ COMMAND
+002070  1  E5 20        			.word PARMTBL3 ; READ CMD TABLE
+002072  1  90 07        			BCC PRINT 		; NO ERROR
+002074  1               
+002074  1  C9 4C        EOFCHK: 	CMP #$4C 		; ERROR = END OF FILE?
+002076  1  F0 15        			BEQ CLOSE 		; YEP!
+002078  1  20 B8 20     			JSR ERROR 		; PRODOS ERROR MSSG
+00207B  1               
+00207B  1  A0 00        PRINT: 	LDY #$00 		; INIT Y-REG
+00207D  1  B9 00 22     @1: 		LDA BUFFER,Y
+002080  1  09 80        			ORA #$80 		; SET HIGH BIT
+002082  1  20 ED FD     			JSR COUT
+002085  1  C8           			INY
+002086  1  CC EB 20     			CPY NUMREAD 	; PRINT CHARS READ IN.
+002089  1  90 F2        			BCC @1
+00208B  1  B0 DA        			BCS READ 		; GET ANOTHER LINE OF TEXT
+00208D  1               
+00208D  1  A9 01        CLOSE: 	LDA #$01 		; REWRITE PARMTBL3
+00208F  1  8D E5 20     			STA PARMTBL3 	; # OF PARMS = l
+002092  1  20 00 BF     			JSR MLI
+002095  1  CC           			.byt $CC 			; CLOSE COMMAND
+002096  1  E5 20        			.word PARMTBL3 	; SAME TABLE AS 'READ'
+002098  1  90 03        			BCC DONE 		; NO ERRORS
+00209A  1  20 B8 20     			JSR ERROR 		; PRODOS ERROR MSSG
+00209D  1               
+00209D  1  A0 00        DONE:		LDY #$00 		; INIT Y-REG
+00209F  1  B9 3B 21     @1: 		LDA MSSG3,Y 	; GET CHAR TO PRINT
+0020A2  1  F0 06        			BEQ D2
+0020A4  1  20 ED FD     			JSR COUT 		; PRINT IT
+0020A7  1  C8           			INY 				; NEXT CHAR
+0020A8  1  D0 F5        			BNE @1 			; WRAPAROUND PROTECT
+0020AA  1               
+0020AA  1  20 0C FD     D2:		JSR RDKEY 		; GET A KEYPRESS
+0020AD  1  4C 0F 20     			JMP BEGIN 		; BACK TO THE BEGINNING
+0020B0  1               
+0020B0  1  20 00 BF     QUIT:		JSR MLI 			; DO QUIT CALL
+0020B3  1  65           			.byt $65 		; QUIT CALL COMMAND VALUE
+0020B4  1  D8 20        			.word PARMTBL1	; ADDRESS OF PARM TABLE
+0020B6  1  00           			BRK
+0020B7  1  00           			BRK	 			; SHOULD NEVER GET HERE ...
+0020B8  1               
+0020B8  1  48           ERROR: 	PHA 				; SAVE ERROR CODE
+0020B9  1  A0 00        			LDY #$00 		; INIT Y-REG
+0020BB  1  B9 11 21     @1: 		LDA MSSG2,Y 	; GET CHAR TO PRINT
+0020BE  1  F0 06        			BEQ PRCODE
+0020C0  1  20 ED FD     			JSR COUT 		; PRINT IT
+0020C3  1  C8           			INY 				; NEXT CHAR
+0020C4  1  D0 F5        			BNE @1 			; WRAPAROUND PROTECT
+0020C6  1               
+0020C6  1  68           PRCODE: 	PLA 				; RETRIEVE ERROR CODE
+0020C7  1  20 DA FD     			JSR PRBYTE 		; PRINT IT
+0020CA  1  A0 00        			LDY #$00 		; INIT Y-REG
+0020CC  1  B9 21 21     @1: 		LDA MSSG2A,Y 	; GET CHAR TO PRINT
+0020CF  1  F0 06        			BEQ ERDONE 		; END OF MSSG
+0020D1  1  20 ED FD     			JSR COUT 		; PRINT IT
+0020D4  1  C8           			INY 				; NEXT CHAR
+0020D5  1  D0 F5        			BNE @1 			; WRAPAROUND PROTECT
+0020D7  1               
+0020D7  1  60           ERDONE: 	RTS
+0020D8  1               
+0020D8  1  04           PARMTBL1:	.byt 4 		; NUMBER OF PARMS
+0020D9  1  00           			.byt 0 			; QUIT TYPE (0 = STD. QUIT)
+0020DA  1  00 00        			.word $0000 	; NOT NEEDED FOR STD. QUIT
+0020DC  1  00           			.byt 0 			; NOT USED AT PRESENT
+0020DD  1  00 00        			.word $0000 	; NOT USED AT PRESENT
+0020DF  1  03           PARMTBL2:	.byt 3 		; NUMBER OF PARMS FOR OPEN = 3
+0020E0  1  00 02        			.word INBUF 	; POINTER TO PATHNAME
+0020E2  1  01 22        			.word DOSBUF 	; POINTER TO PRODOS BUFFER
+0020E4  1  00           REFNUM: 	.byt 0 			; PRODOS FILE REFERENCE NUMBER
+0020E5  1  00           PARMTBL3:	.byt 0 		; NUMBER OF PARMS FOR READ/CWSE
+0020E6  1  00           			.byte 0 			; REFERENCE NUMBER
+0020E7  1  00 22        			.word BUFFER 	; POINTER TO DATA BUFFER
+0020E9  1  FF 00        			.word 255 		; 255 CHARACTERS TO READ
+0020EB  1  00 00        NUMREAD: .word 0 			; NUMBER OF CHARACTERS READ.
+0020ED  1  D0 CC C5 C1  MSSG1:   hiasc "PLEASE ENTER PATHNAME:"
+0020F1  1  D3 C5 A0 C5  
+0020F5  1  CE D4 C5 D2  
+002103  1  8D           			.byte $8D
+002104  1  A8 CF D2 A7  			hiasc "(OR'"
+002108  1  D1 D5 C9 D4  WORD:		hiasc "QUIT"
+00210C  1  A7 A9 A0     			hiasc "') "
+00210F  1  8D 00        			.byte $8D,00
+002111  1  8D           MSSG2:	.byte $8D 			; PRINT RETURN FIRST
+002112  1  D0 D2 CF C4  			hiasc "PRODOS ERROR $"
+002116  1  CF D3 A0 C5  
+00211A  1  D2 D2 CF D2  
+002120  1  00           			.byte 00
+002121  1  8D           MSSG2A: 	.byte $8D 			; ANOTHER CARRIAGE RETURN
+002122  1  D0 D2 C5 D3  			hiasc "PRESS A KEY TO TRY AGAIN"
+002126  1  D3 A0 C1 A0  
+00212A  1  CB C5 D9 A0  
+00213A  1  00           			.byte 00
+00213B  1  8D           MSSG3: 	.byte $8D 			; PRINT RETURN FIRST ...
+00213C  1  D0 D2 C5 D3  			hiasc "PRESS A KEY FOR NEXT FILE"
+002140  1  D3 A0 C1 A0  
+002144  1  CB C5 D9 A0  
+002155  1  00           			.byte 00
+002156  1               CHKSUM: 		 				; CHECKSUM FOR VERIFICATION
+002156  1  xx xx xx xx  			.align 256		; SKIP TO NEXT PAGE BOUNDARY
+00215A  1  xx xx xx xx  
+00215E  1  xx xx xx xx  
+002200  1  FF           BUFFER: 	.byte  255 		; DATA BUFFER FOR US
+002201  1               DOSBUF: 						; 1024 BYTES FOR PRODOS BUFFER
+002201  1               								; NOT IN PROGRAM SO AS TO NOT
+002201  1               								; TAKE UP DISK SPACE
+002201  1               			.segment "INIT"
+002201  1               			.segment "ONCE"
+002201  1               
